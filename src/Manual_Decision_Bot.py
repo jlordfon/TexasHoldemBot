@@ -258,3 +258,236 @@ def bet(self, curr_bet):
     if self.cash < curr_bet:
         # Return folding and no cash added to pot.
         return 0, 0
+
+        
+# Manual Decision Bot Unit Test
+if __name__ == "__main__":
+    # Note: Suit order: 0 - Clubs, 1 - Diamonds, 2 - Hearts, 3 - Spades
+    # Note: The card_number is the actual number minus 2 (because the lowest card is 2 and the arrays are 0-indexed)
+
+    # Initialize
+    # Create a bot
+    Player_1 = Manual_Decision_Bot('Tex', [1500, 2000, 3500])
+    Player_1.new_round()
+    # Set up checker
+    dealt_cards = np.zeros((4,13), dtype = np.int) # Suit x Rank
+    
+    # Deal Cards
+    # Deal the player a 7 (5+2) of Diamonds
+    Player_1.dealt_card(1, 5, Player_1.name)
+    dealt_cards[1,5] = 1
+    # Deal the player an Ace of Hearts
+    Player_1.dealt_card(2, 12, Player_1.name)
+    dealt_cards[2,12] = 1
+    # Deal to the table a 2 of Spades
+    Player_1.dealt_card(3, 0, 'Table')
+    dealt_cards[3,0] = 1
+    # Deal to the table a 6 of Spades
+    # Player_1.dealt_card(3, 4, 'Table')
+    # dealt_cards[3,4] = 1
+    # Deal to the table a 5 of Diamonds
+    # Player_1.dealt_card(1, 3, 'Table')
+    # dealt_cards[1,3] = 1
+    # Deal to the table a 10 of Clubs
+    # Player_1.dealt_card(0, 8, 'Table')
+    # dealt_cards[0,8] = 1
+    
+    # Calculate Probabilities
+    # Ask the player to calculate probabilities
+    Player_1.calc_probs()
+    player_probs = Player_1.my_probs
+    # Manually Calculate Probabilities
+    cards_left = 7 - np.sum(dealt_cards)
+    total_possibilities = 0
+    hand_possibilities = np.zeros((4,13,9), dtype = np.int) # Suit x Rank x Poker hand
+    # Initialize possibilities list
+    current_possibility = []
+    prev_idx = -1
+    valid_possibility = True
+    for ii in range(cards_left):
+        for jj in range(prev_idx + 1, 4 * 13):
+            if dealt_cards[jj // 13, jj % 13] == 0:
+                current_possibility.append(jj)
+                prev_idx = jj
+                break
+    while(valid_possibility):
+        print("current_possibility: ", current_possibility)
+        total_possibilities += 1
+        # Add cards to virtual hand
+        for ii in range(len(current_possibility)):
+            dealt_cards[current_possibility[ii] // 13, current_possibility[ii] % 13] = 1
+
+        # Determine which poker hand was achieved
+        hand_found = False
+        # Straight Flush (idx: 8)
+        for suit in range(3,-1,-1):
+            if hand_found:
+                break
+            streak = 0
+            for rank in range(12,-1,-1):
+                if hand_found:
+                    break
+                if dealt_cards[suit, rank] == 1:
+                    streak += 1
+                    if streak == 5:
+                        hand_found = True
+                        hand_possibilities[suit, rank + 4, 8] += 1
+                else:
+                    streak = 0
+        # Four of a Kind (idx: 7)
+        if not hand_found:
+            dealt_cards_rank_summed = np.sum(dealt_cards, axis = 0)
+            for rank in range(12, -1, -1):
+                if dealt_cards_rank_summed[rank] == 4:
+                    hand_found = True
+                    hand_possibilities[3, rank, 7] += 1
+                    break
+        # Full House (idx: 6)
+        if not hand_found:
+            three_kind = False
+            two_kind = False
+            high_suit = 0
+            high_rank = 0
+            for rank in range(12, -1, -1):
+                if hand_found:
+                    break
+                if dealt_cards_rank_summed[rank] == 3:
+                    if not three_kind and not two_kind:
+                        three_kind = True
+                        high_rank = rank
+                        if dealt_cards[3, rank] == 1:
+                            high_suit = 3
+                        else:
+                            high_suit = 2
+                    else:
+                        hand_found = True
+                        hand_possibilities[high_suit, high_rank, 6] += 1
+                elif dealt_cards_rank_summed[rank] == 2:
+                    if three_kind:
+                        hand_found = True
+                        hand_possibilities[high_suit, high_rank, 6] += 1
+                    elif not two_kind:
+                        two_kind = True
+                        high_rank = rank
+                        if dealt_cards[3, rank] == 1:
+                            high_suit = 3
+                        elif dealt_cards[2, rank] == 1:
+                            high_suit = 2
+                        else:
+                            high_suit = 1
+        # Flush (idx: 5)
+        if not hand_found:
+            dealt_cards_suit_summed = np.sum(dealt_cards, axis = 1)
+            for suit in range(3,-1,-1):
+                if dealt_cards_suit_summed[suit] >= 5 and not hand_found:
+                    hand_found = True
+                    for rank in range(12,-1,-1):
+                        if dealt_cards[suit,rank] == 1:
+                            hand_possibilities[suit, rank, 5] += 1
+                            break
+        # Straight (idx: 4)
+        if not hand_found:
+            streak = 0
+            for rank in range(12,-1,-1):
+                if dealt_cards_rank_summed[rank] >= 1:
+                    streak += 1
+                    if streak == 5:
+                        hand_found = True
+                        if dealt_cards[3, rank + 4] == 1:
+                            suit = 3
+                        elif dealt_cards[2, rank + 4] == 1:
+                            suit = 2
+                        elif dealt_cards[1, rank + 4] == 1:
+                            suit = 1
+                        else:
+                            suit = 0
+                        hand_possibilities[suit, rank + 4, 4] += 1
+                else:
+                    streak = 0
+        # Three of a Kind (idx: 3)
+        if not hand_found:
+            for rank in range(12,-1,-1):
+                if dealt_cards_rank_summed[rank] == 3:
+                    hand_found = True
+                    if dealt_cards[3, rank] == 1:
+                        hand_possibilities[3, rank, 3] += 1
+                    else:
+                        hand_possibilities[2, rank, 3] += 1
+                    break
+        # Two Pair (idx: 2)
+        if not hand_found:
+            two_kind = False
+            high_suit = 0
+            high_rank = 0
+            for rank in range(12, -1, -1):
+                if hand_found:
+                    break
+                elif dealt_cards_rank_summed[rank] == 2:
+                    if two_kind:
+                        hand_found = True
+                        hand_possibilities[high_suit, high_rank, 2] += 1
+                    else:
+                        two_kind = True
+                        high_rank = rank
+                        if dealt_cards[3, rank] == 1:
+                            high_suit = 3
+                        elif dealt_cards[2, rank] == 1:
+                            high_suit = 2
+                        else:
+                            high_suit = 1
+        # Pair (idx: 1)
+        if not hand_found:
+            for rank in range(12, -1, -1):
+                if dealt_cards_rank_summed[rank] == 2:
+                    hand_found = True
+                    if dealt_cards[3, rank] == 1:
+                        suit = 3
+                    elif dealt_cards[2, rank] == 1:
+                        suit = 2
+                    else:
+                        suit = 1
+                    hand_possibilities[suit, rank, 1] += 1
+        # High (idx: 0)
+        if not hand_found:
+            for rank in range(12,-1,-1):
+                for suit in range(3,-1,-1):
+                    if dealt_cards[suit, rank] == 1 and not hand_found:
+                        hand_found = True
+                        hand_possibilities[suit, rank, 0] += 1
+
+        # Remove cards from virtual hand
+        for ii in range(len(current_possibility)):
+            dealt_cards[current_possibility[ii] // 13, current_possibility[ii] % 13] = 0
+        # Determine next possibility
+        cur_list_idx = cards_left - 1
+        while(valid_possibility):
+            current_possibility[cur_list_idx] += 1
+            cur_hand_idx = current_possibility[cur_list_idx]
+            if cur_hand_idx <= 51 + cur_list_idx - cards_left + 1:
+                if dealt_cards[cur_hand_idx // 13, cur_hand_idx % 13] == 0:
+                    cur_list_idx += 1
+                    if cur_list_idx == cards_left:
+                        break
+                    current_possibility[cur_list_idx] = current_possibility[cur_list_idx - 1]
+                else:
+                    continue
+            else:
+                cur_list_idx -= 1
+                if cur_list_idx < 0:
+                    valid_possibility = False
+    manual_probabilities = hand_possibilities.astype(float) / float(total_possibilities)
+    list_of_hands = ["high", "pair", "2pair", "3kind", "straight", "flush", "fullhouse", "4kind", "straightflush"]
+    for poker_hand in range(8,-1,-1):
+        print("Poker_hand: ", list_of_hands[poker_hand])
+        if np.array_equal(manual_probabilities[:,:,poker_hand], Player_1.my_probs[:,:,poker_hand]):
+            print("Equivalent?: Yes")
+        else:
+            print("Equivalent?: No")
+        if np.allclose(manual_probabilities[:,:,poker_hand], Player_1.my_probs[:,:,poker_hand], atol=1e-3):
+            print("Close?: Yes")
+        else:
+            print("Close?: No")
+        print("Manual Probabilities:")
+        print(manual_probabilities[:,:,poker_hand])
+        print("Bot Probabilities:")
+        print(Player_1.my_probs[:,:,poker_hand])
