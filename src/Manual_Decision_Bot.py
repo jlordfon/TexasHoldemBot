@@ -47,7 +47,7 @@ class Manual_Decision_Bot:
         # Reset probabilities
         self.my_probs =  np.zeros((4,13,len(self.list_of_hands)), dtype = np.float64)
         # Calculate the total number of possible card combinations going forward.
-        all_combs = self.COMB(52 - np.sum(self.cards_revealed), self.hand_num + self.table_num - np.sum(self.cards_in_hand) - np.sum(self.cards_on_table))
+        all_combs = self.COMB(52 - np.sum(self.cards_revealed), self.hand_num + self.table_num - np.sum(self.cards_revealed))
         # Loop through the possible poker hands.
         for hand in range(self.my_probs.shape[2]):
             # Loop through the card numbers.
@@ -229,18 +229,79 @@ class Manual_Decision_Bot:
                     # Calculate probability of getting an x card straight.
                     elif hand == 4:
                         continue
+                        reqd_cards = 5
+                        # if the "lead" card is too low, throw it out
+                        if num < reqd_cards - 1:
+                            continue
+                        # if there aren't enough cards for a flush in that suit, throw it out
+                        if np.sum(self.cards_revealed) - np.sum(self.cards_revealed[suit,num]) > self.hand_num + self.table_num - reqd_cards:
+                            continue
                     # Calculate probability of getting an x card flush.
                     elif hand == 5:
                         continue
+                        reqd_cards = 5
+                        # if the "lead" card is too low, throw it out
+                        if num < reqd_cards - 1:
+                            continue
+                        # if there aren't enough cards for a flush in that suit, throw it out
+                        if np.sum(self.cards_revealed) - np.sum(self.cards_revealed[suit,num]) > self.hand_num + self.table_num - reqd_cards:
+                            continue
                     # Calculate probability of getting an x card fullhouse.
                     elif hand == 6:
+                        # if the num or suit is too low, throw it out
+                        if num == 0 or suit == 0:
+                            continue
+                        # if there is 4 of a kind, throw it out
+                        if np.amax(np.sum(self.cards_revealed, axis = 1)) > 3:
+                            continue
+                        # if there is a higher lead card, throw it out
+                        if np.sum(self.cards_revealed[suit+1:,num]) > 0:
+                            continue
+                        reqd_cards = 1 # lead card
+                        opt_cards = 4 # Any lower combination of 2 and 2 or 1 and 3
+                        # if there aren't enough cards left, throw it out
+                        
+                        # There are many combinations of required cards (3 out of 4 and 2 out of 4 OR 2 out of 4 and 3 out of 4)
+                        # Can be superseded by only 4 of a kind
                         continue
                     # Calculate probability of getting an x card 4kind.
                     elif hand == 7:
-                        continue
+                        reqd_cards = 4
+                        # if there aren't enough cards left, throw it out
+                        if np.sum(self.hand_num + self.table_num - np.sum(self.cards_revealed) + np.sum(self.cards_revealed[:,num]) < reqd_cards):
+                            continue
+                        # There is only 1 combination of required cards
+                        # There is no possibility of a superseding hand
+                        # Calculate the total combs of other cards
+                        other_in_deck = 52 - np.sum(self.cards_revealed) + np.sum(self.cards_revealed[:,num]) - reqd_cards
+                        other_to_draw = self.hand_num + self.table_num - np.sum(self.cards_revealed) + np.sum(self.cards_revealed[:,num] - reqd_cards)
+                        total_combs = self.COMB(other_in_deck, other_to_draw)
+                        self.my_probs[suit,num,hand] = total_combs / all_combs
                     # Calculate probability of getting an x card straightflush.
                     else:
-                        continue
+                        reqd_cards = 5
+                        # if the "lead" card is too low, throw it out
+                        if num < reqd_cards - 1:
+                            continue
+                        # if the same-suited card immediately above has been drawn, throw it out
+                        if num+1 < self.cards_revealed.shape[1] and self.cards_revealed[suit, num+1] == 1:
+                            continue
+                        # if there aren't enough cards for that straight flush, throw it out
+                        if np.sum(self.cards_revealed) - np.sum(self.cards_revealed[suit,num-reqd_cards:num]) > self.hand_num + self.table_num - reqd_cards:
+                            continue
+                        num_req_drawn = np.sum(self.cards_revealed[suit,num-reqd_cards:num])
+                        # There is only 1 combination of required cards
+                        # Calculate the total combos of other cards, which excludes the card one higher in the same suit
+                        total_combs = 0
+                        other_to_draw = self.hand_num + self.table_num - np.sum(self.cards_revealed) - reqd_cards + num_req_drawn
+                        # There *is* a possible higher straight
+                        if num + 1 < self.cards_revealed.shape[1]:
+                            total_combs += self.COMB(52 - np.sum(self.cards_revealed) - reqd_cards + num_req_drawn - 1, other_to_draw)
+                        # There is *not* a possible higher straight
+                        else:
+                            total_combs += self.COMB(52 - np.sum(self.cards_revealed) - reqd_cards + num_req_drawn, other_to_draw)
+                        self.my_probs[suit,num,hand] = total_combs / all_combs
+
 
 def opponents_bets(self, opponents, cash, folded):
     for opponent in opponents:
@@ -274,14 +335,14 @@ if __name__ == "__main__":
     
     # Deal Cards
     # Deal the player a 7 (5+2) of Diamonds
-    Player_1.dealt_card(1, 5, Player_1.name)
-    dealt_cards[1,5] = 1
+    # Player_1.dealt_card(1, 5, Player_1.name)
+    # dealt_cards[1,5] = 1
     # Deal the player an Ace of Hearts
-    Player_1.dealt_card(2, 12, Player_1.name)
-    dealt_cards[2,12] = 1
+    # Player_1.dealt_card(2, 12, Player_1.name)
+    # dealt_cards[2,12] = 1
     # Deal to the table a 2 of Spades
-    Player_1.dealt_card(3, 0, 'Table')
-    dealt_cards[3,0] = 1
+    # Player_1.dealt_card(3, 0, 'Table')
+    # dealt_cards[3,0] = 1
     # Deal to the table a 6 of Spades
     # Player_1.dealt_card(3, 4, 'Table')
     # dealt_cards[3,4] = 1
@@ -491,3 +552,7 @@ if __name__ == "__main__":
         print(manual_probabilities[:,:,poker_hand])
         print("Bot Probabilities:")
         print(Player_1.my_probs[:,:,poker_hand])
+        print("Difference:")
+        print(manual_probabilities[:,:,poker_hand] - Player_1.my_probs[:,:,poker_hand])
+        print("Percent Difference:")
+        print((manual_probabilities[:,:,poker_hand] - Player_1.my_probs[:,:,poker_hand]) / Player_1.my_probs[:,:,poker_hand])
