@@ -115,7 +115,7 @@ class Manual_Decision_Bot:
                             else:
                                 other_opts = np.count_nonzero(np.sum(self.cards_revealed[:,np.arange(self.cards_revealed.shape[1]) != num], axis = 0)==0)
                                 other_combs = self.COMB(other_opts, other_needed) * 4**other_needed
-                                print('other_combs B is: ', other_combs)
+                                # print('other_combs B is: ', other_combs)
                                 self.my_probs[suit,num,hand] = (reqd_combs * opt_combs * other_combs) / all_combs
 
                     # Calculate probability of getting an x card 2pair.
@@ -252,29 +252,54 @@ class Manual_Decision_Bot:
                         if num == 0 or suit == 0:
                             continue
                         # if there is 4 of a kind, throw it out
-                        if np.amax(np.sum(self.cards_revealed, axis = 1)) > 3:
+                        if np.amax(np.sum(self.cards_revealed, axis = 0)) > 3:
                             continue
                         # if there is a higher lead card, throw it out
                         if np.sum(self.cards_revealed[suit+1:,num]) > 0:
                             continue
                         reqd_cards = 1 # lead card
                         opt_cards = 4 # Any lower combination of 2 and 2 or 1 and 3
+                        reqd_cards_to_draw = 1 - self.cards_revealed[suit,num]
+                        opt_cards_to_draw = np.min(opt_cards - np.sum(self.cards_revealed[:suit+1,num]) - np.amax(np.sum(self.cards_revealed[:,:num], axis = 0)),0)
                         # if there aren't enough cards left, throw it out
-                        
+                        if (opt_cards_to_draw + reqd_cards_to_draw) > (self.hand_num + self.table_num - np.sum(self.cards_revealed)):
+                            continue
                         # There are many combinations of required cards (3 out of 4 and 2 out of 4 OR 2 out of 4 and 3 out of 4)
                         # Can be superseded by only 4 of a kind
-                        continue
+                        total_combs = 0
+                        opt_zeros = np.count_nonzero(np.sum(self.cards_revealed[:,:num], axis=0) == 0)
+                        opt_ones = np.count_nonzero(np.sum(self.cards_revealed[:,:num], axis=0) == 1)
+                        opt_twos = np.count_nonzero(np.sum(self.cards_revealed[:,:num], axis=0) == 2)
+                        opt_threes = np.count_nonzero(np.sum(self.cards_revealed[:,:num], axis=0) == 3)
+                        # All valid combinations with leading pair
+                        # Do we already have a leading pair?
+                        if np.sum(self.cards_revealed[:suit,num]) == 1:
+                            lead_pair_combs = 1
+                        else:
+                            lead_pair_combs = suit
+                        # Do we already have a trailing trio?
+                        if opt_threes > 0:
+                            trail_trio_combs = 1
+                            # Calculate all "other" possibillities here?
+                            # Exclude third leading card, 4 of a kinds, and higher full houses (pairs in this case, trios further down)
+                        else:
+                            continue
+                        # All valid combinations with leading trio
+                        self.my_probs[suit,num,hand] = total_combs / all_combs
                     # Calculate probability of getting an x card 4kind.
                     elif hand == 7:
                         reqd_cards = 4
                         # if there aren't enough cards left, throw it out
                         if np.sum(self.hand_num + self.table_num - np.sum(self.cards_revealed) + np.sum(self.cards_revealed[:,num]) < reqd_cards):
                             continue
+                        # if the suit is too low, throw it out (4 of a kind requires the highest suit to lead)
+                        if suit < 3:
+                            continue
                         # There is only 1 combination of required cards
                         # There is no possibility of a superseding hand
                         # Calculate the total combs of other cards
                         other_in_deck = 52 - np.sum(self.cards_revealed) + np.sum(self.cards_revealed[:,num]) - reqd_cards
-                        other_to_draw = self.hand_num + self.table_num - np.sum(self.cards_revealed) + np.sum(self.cards_revealed[:,num] - reqd_cards)
+                        other_to_draw = self.hand_num + self.table_num - np.sum(self.cards_revealed) + np.sum(self.cards_revealed[:,num]) - reqd_cards
                         total_combs = self.COMB(other_in_deck, other_to_draw)
                         self.my_probs[suit,num,hand] = total_combs / all_combs
                     # Calculate probability of getting an x card straightflush.
@@ -287,9 +312,9 @@ class Manual_Decision_Bot:
                         if num+1 < self.cards_revealed.shape[1] and self.cards_revealed[suit, num+1] == 1:
                             continue
                         # if there aren't enough cards for that straight flush, throw it out
-                        if np.sum(self.cards_revealed) - np.sum(self.cards_revealed[suit,num-reqd_cards:num]) > self.hand_num + self.table_num - reqd_cards:
+                        if np.sum(self.cards_revealed) - np.sum(self.cards_revealed[suit,num+1-reqd_cards:num+1]) > self.hand_num + self.table_num - reqd_cards:
                             continue
-                        num_req_drawn = np.sum(self.cards_revealed[suit,num-reqd_cards:num])
+                        num_req_drawn = np.sum(self.cards_revealed[suit,num+1-reqd_cards:num+1])
                         # There is only 1 combination of required cards
                         # Calculate the total combos of other cards, which excludes the card one higher in the same suit
                         total_combs = 0
@@ -335,11 +360,11 @@ if __name__ == "__main__":
     
     # Deal Cards
     # Deal the player a 7 (5+2) of Diamonds
-    # Player_1.dealt_card(1, 5, Player_1.name)
-    # dealt_cards[1,5] = 1
-    # Deal the player an Ace of Hearts
-    # Player_1.dealt_card(2, 12, Player_1.name)
-    # dealt_cards[2,12] = 1
+    Player_1.dealt_card(1, 5, Player_1.name)
+    dealt_cards[1,5] = 1
+    # Deal the player an 8 of Diamonds
+    Player_1.dealt_card(1, 6, Player_1.name)
+    dealt_cards[1,6] = 1
     # Deal to the table a 2 of Spades
     # Player_1.dealt_card(3, 0, 'Table')
     # dealt_cards[3,0] = 1
