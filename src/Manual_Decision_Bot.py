@@ -12,22 +12,26 @@ class Manual_Decision_Bot:
         # Set game rules
         self.hand_num = 2
         self.table_num = 5
+        self.suits_num = 4
+        self.numbers_num = 13
         # Set up opponents
         self.num_players = len(cash_list)
         self.fold_list = [0] * len(cash_list)
         # Set up cards
-        self.cards_in_hand = np.zeros((4,13), dtype = np.int8)
-        self.cards_on_table = np.zeros((4,13), dtype = np.int8)
+        self.fresh_round = True
+        self.cards_in_hand = np.zeros((self.suits_num, self.numbers_num), dtype = np.int8)
+        self.cards_on_table = np.zeros((self.suits_num, self.numbers_num), dtype = np.int8)
         # Set up probabilities
-        self.cards_revealed = np.zeros((4,13), dtype = np.int8)
+        self.cards_revealed = np.zeros((self.suits_num, self.numbers_num), dtype = np.int8)
         self.list_of_hands = ["high", "pair", "2pair", "3kind", "straight", "flush", "fullhouse", "4kind", "straightflush"]
-        self.my_probs = np.zeros((4,13,len(self.list_of_hands)), dtype = np.float64)
-        self.opponent_probs = np.zeros((4,13,len(self.list_of_hands)), dtype = np.float64)
+        self.my_probs = np.zeros((self.suits_num, self.numbers_num,len(self.list_of_hands)), dtype = np.float64)
+        self.opponent_probs = np.zeros((self.suits_num, self.numbers_num,len(self.list_of_hands)), dtype = np.float64)
 
     def new_round(self):
-        self.cards_in_hand = np.zeros((4,13), dtype = np.int8)
-        self.cards_on_table = np.zeros((4,13), dtype = np.int8)
-        self.cards_revealed = np.zeros((4,13), dtype = np.int8)
+        self.fresh_round = True
+        self.cards_in_hand = np.zeros((self.suits_num, self.numbers_num), dtype = np.int8)
+        self.cards_on_table = np.zeros((self.suits_num, self.numbers_num), dtype = np.int8)
+        self.cards_revealed = np.zeros((self.suits_num, self.numbers_num), dtype = np.int8)
         self.fold_list = [0] * self.num_players
 
     def dealt_card(self, suit, num, recipient):
@@ -39,13 +43,14 @@ class Manual_Decision_Bot:
         else:
             self.cards_in_hand[suit, num] += 1
         self.cards_revealed[suit, num] += 1
+        self.fresh_round = False
     
     def COMB(self,n,r):
         return (factorial(n)/(factorial(r)*factorial(n-r)))
 
     def calc_probs(self):
         # Reset probabilities
-        self.my_probs =  np.zeros((4,13,len(self.list_of_hands)), dtype = np.float64)
+        self.my_probs =  np.zeros((self.suits_num, self.numbers_num,len(self.list_of_hands)), dtype = np.float64)
         # Calculate the total number of possible card combinations going forward.
         all_combs = self.COMB(52 - np.sum(self.cards_revealed), self.hand_num + self.table_num - np.sum(self.cards_revealed))
         # Loop through the possible poker hands.
@@ -328,22 +333,22 @@ class Manual_Decision_Bot:
                         self.my_probs[suit,num,hand] = total_combs / all_combs
 
 
-def opponents_bets(self, opponents, cash, folded):
-    for opponent in opponents:
-        self.opponents_cash[opponent] -= cash[opponent]
-        self.pot += cash[opponent]
-        if folded[opponent]:
-            self.opponents_folded[opponent] += 1
-        else:
-            continue                      
-
-def bet(self, curr_bet):
-    # 0 = fold
-    # 1 = match
-    # 2 = raise
-    if self.cash < curr_bet:
-        # Return folding and no cash added to pot.
-        return 0, 0
+    def opponents_bets(self, opponents, cash, folded):
+        for opponent in opponents:
+            self.opponents_cash[opponent] -= cash[opponent]
+            self.pot += cash[opponent]
+            if folded[opponent]:
+                self.opponents_folded[opponent] += 1
+            else:
+                continue                      
+    
+    def bet(self, curr_bet):
+        # 0 = fold
+        # 1 = match
+        # 2 = raise
+        if self.cash < curr_bet:
+            # Return folding and no cash added to pot.
+            return 0, 0
 
         
 # Manual Decision Bot Unit Test
@@ -378,206 +383,186 @@ if __name__ == "__main__":
     # Player_1.dealt_card(0, 8, 'Table')
     # dealt_cards[0,8] = 1
     
-    # Calculate Probabilities
-    # Ask the player to calculate probabilities
-    Player_1.calc_probs()
-    player_probs = Player_1.my_probs
-    # Manually Calculate Probabilities
-    cards_left = 7 - np.sum(dealt_cards)
-    total_possibilities = 0
-    hand_possibilities = np.zeros((4,13,9), dtype = np.int) # Suit x Rank x Poker hand
-    # Initialize possibilities list
-    current_possibility = []
-    prev_idx = -1
-    valid_possibility = True
-    for ii in range(cards_left):
-        for jj in range(prev_idx + 1, 4 * 13):
-            if dealt_cards[jj // 13, jj % 13] == 0:
-                current_possibility.append(jj)
-                prev_idx = jj
-                break
-    while(valid_possibility):
-        print("current_possibility: ", current_possibility)
-        total_possibilities += 1
-        # Add cards to virtual hand
-        for ii in range(len(current_possibility)):
-            dealt_cards[current_possibility[ii] // 13, current_possibility[ii] % 13] = 1
-
-        # Determine which poker hand was achieved
-        hand_found = False
-        # Straight Flush (idx: 8)
-        for suit in range(3,-1,-1):
-            if hand_found:
-                break
-            streak = 0
-            for rank in range(12,-1,-1):
-                if hand_found:
-                    break
-                if dealt_cards[suit, rank] == 1:
-                    streak += 1
-                    if streak == 5:
-                        hand_found = True
-                        hand_possibilities[suit, rank + 4, 8] += 1
-                else:
-                    streak = 0
-        # Four of a Kind (idx: 7)
-        if not hand_found:
-            dealt_cards_rank_summed = np.sum(dealt_cards, axis = 0)
-            for rank in range(12, -1, -1):
-                if dealt_cards_rank_summed[rank] == 4:
-                    hand_found = True
-                    hand_possibilities[3, rank, 7] += 1
-                    break
-        # Full House (idx: 6)
-        if not hand_found:
-            three_kind = False
-            two_kind = False
-            high_suit = 0
-            high_rank = 0
-            for rank in range(12, -1, -1):
-                if hand_found:
-                    break
-                if dealt_cards_rank_summed[rank] == 3:
-                    if not three_kind and not two_kind:
-                        three_kind = True
-                        high_rank = rank
-                        if dealt_cards[3, rank] == 1:
-                            high_suit = 3
-                        else:
-                            high_suit = 2
-                    else:
-                        hand_found = True
-                        hand_possibilities[high_suit, high_rank, 6] += 1
-                elif dealt_cards_rank_summed[rank] == 2:
-                    if three_kind:
-                        hand_found = True
-                        hand_possibilities[high_suit, high_rank, 6] += 1
-                    elif not two_kind:
-                        two_kind = True
-                        high_rank = rank
-                        if dealt_cards[3, rank] == 1:
-                            high_suit = 3
-                        elif dealt_cards[2, rank] == 1:
-                            high_suit = 2
-                        else:
-                            high_suit = 1
-        # Flush (idx: 5)
-        if not hand_found:
-            dealt_cards_suit_summed = np.sum(dealt_cards, axis = 1)
-            for suit in range(3,-1,-1):
-                if dealt_cards_suit_summed[suit] >= 5 and not hand_found:
-                    hand_found = True
-                    for rank in range(12,-1,-1):
-                        if dealt_cards[suit,rank] == 1:
-                            hand_possibilities[suit, rank, 5] += 1
-                            break
-        # Straight (idx: 4)
-        if not hand_found:
-            streak = 0
-            for rank in range(12,-1,-1):
-                if dealt_cards_rank_summed[rank] >= 1:
-                    streak += 1
-                    if streak == 5:
-                        hand_found = True
-                        if dealt_cards[3, rank + 4] == 1:
-                            suit = 3
-                        elif dealt_cards[2, rank + 4] == 1:
-                            suit = 2
-                        elif dealt_cards[1, rank + 4] == 1:
-                            suit = 1
-                        else:
-                            suit = 0
-                        hand_possibilities[suit, rank + 4, 4] += 1
-                else:
-                    streak = 0
-        # Three of a Kind (idx: 3)
-        if not hand_found:
-            for rank in range(12,-1,-1):
-                if dealt_cards_rank_summed[rank] == 3:
-                    hand_found = True
-                    if dealt_cards[3, rank] == 1:
-                        hand_possibilities[3, rank, 3] += 1
-                    else:
-                        hand_possibilities[2, rank, 3] += 1
-                    break
-        # Two Pair (idx: 2)
-        if not hand_found:
-            two_kind = False
-            high_suit = 0
-            high_rank = 0
-            for rank in range(12, -1, -1):
-                if hand_found:
-                    break
-                elif dealt_cards_rank_summed[rank] == 2:
-                    if two_kind:
-                        hand_found = True
-                        hand_possibilities[high_suit, high_rank, 2] += 1
-                    else:
-                        two_kind = True
-                        high_rank = rank
-                        if dealt_cards[3, rank] == 1:
-                            high_suit = 3
-                        elif dealt_cards[2, rank] == 1:
-                            high_suit = 2
-                        else:
-                            high_suit = 1
-        # Pair (idx: 1)
-        if not hand_found:
-            for rank in range(12, -1, -1):
-                if dealt_cards_rank_summed[rank] == 2:
-                    hand_found = True
-                    if dealt_cards[3, rank] == 1:
-                        suit = 3
-                    elif dealt_cards[2, rank] == 1:
-                        suit = 2
-                    else:
-                        suit = 1
-                    hand_possibilities[suit, rank, 1] += 1
-        # High (idx: 0)
-        if not hand_found:
-            for rank in range(12,-1,-1):
-                for suit in range(3,-1,-1):
-                    if dealt_cards[suit, rank] == 1 and not hand_found:
-                        hand_found = True
-                        hand_possibilities[suit, rank, 0] += 1
-
-        # Remove cards from virtual hand
-        for ii in range(len(current_possibility)):
-            dealt_cards[current_possibility[ii] // 13, current_possibility[ii] % 13] = 0
-        # Determine next possibility
-        cur_list_idx = cards_left - 1
-        while(valid_possibility):
-            current_possibility[cur_list_idx] += 1
-            cur_hand_idx = current_possibility[cur_list_idx]
-            if cur_hand_idx <= 51 + cur_list_idx - cards_left + 1:
-                if dealt_cards[cur_hand_idx // 13, cur_hand_idx % 13] == 0:
-                    cur_list_idx += 1
-                    if cur_list_idx == cards_left:
-                        break
-                    current_possibility[cur_list_idx] = current_possibility[cur_list_idx - 1]
-                else:
-                    continue
-            else:
-                cur_list_idx -= 1
-                if cur_list_idx < 0:
-                    valid_possibility = False
-    manual_probabilities = hand_possibilities.astype(float) / float(total_possibilities)
-    list_of_hands = ["high", "pair", "2pair", "3kind", "straight", "flush", "fullhouse", "4kind", "straightflush"]
-    for poker_hand in range(8,-1,-1):
-        print("Poker_hand: ", list_of_hands[poker_hand])
-        if np.array_equal(manual_probabilities[:,:,poker_hand], Player_1.my_probs[:,:,poker_hand]):
-            print("Equivalent?: Yes")
+    Test_Set_0_Initialization_Tests = True
+    Test_Set_1_Individual_Function_Tests = True
+    Test_Set_2_Dealing_Cards_Tests = True
+    Test_Set_3_Probability_Calc_Tests = True
+    Test_Set_4_Decision_Tests = True
+    
+    ## 0) Bot Initialization Tests
+    if (Test_Set_0_Initialization_Tests):
+        print("Running Test Set 0: Initialization Tests")
+        
+        # Case 0.0, Nominal Variables Check
+        Test0_0 = Manual_Decision_Bot("Test", [1, 20, 300])
+        assert Test0_0.num_players == 3, print("Case 0.0 failed: num_players is %i, not 3.", Test0_0.num_players)
+        assert Test0_0.fold_list == [0, 0, 0], print("Case 0.0 failed: fold_list is %l, not [0, 0, 0].", *Test0_0.fold_list)
+        assert np.sum(Test0_0.cards_in_hand) == 0, "Case 0.0 failed: hand not empty of cards."
+        assert np.sum(Test0_0.cards_on_table) == 0, "Case 0.0 failed: table not empty of cards."
+        assert np.sum(Test0_0.cards_revealed) == 0, "Case 0.0 failed: cards revealed."
+        assert np.sum(Test0_0.my_probs) == 0, "Case 0.0 failed: probabilities not null."
+        assert np.sum(Test0_0.opponent_probs) == 0, "Case 0.0 failed: opponent probabilities not null."
+        del Test0_0
+        
+        # Case 0.1, No name
+        try:
+            Test0_1 = Manual_Decision_Bot("", [1000, 1000, 1000])
+        except:
+            assert False, "Case 0.1 failed: bot could not be created without name."
         else:
-            print("Equivalent?: No")
-        if np.allclose(manual_probabilities[:,:,poker_hand], Player_1.my_probs[:,:,poker_hand], atol=1e-3):
-            print("Close?: Yes")
+            del Test0_1
+        
+        # Case 0.2, Long name
+        try:
+            Test0_2 = Manual_Decision_Bot("This is a very long name and I don't know why anyone would choose something like this in their code", [1000, 1000, 1000])
+        except:
+            assert False, "Case 0.2 failed: bot could not be created with a long name."
         else:
-            print("Close?: No")
-        print("Manual Probabilities:")
-        print(manual_probabilities[:,:,poker_hand])
-        print("Bot Probabilities:")
-        print(Player_1.my_probs[:,:,poker_hand])
-        print("Difference:")
-        print(manual_probabilities[:,:,poker_hand] - Player_1.my_probs[:,:,poker_hand])
-        print("Percent Difference:")
-        print((manual_probabilities[:,:,poker_hand] - Player_1.my_probs[:,:,poker_hand]) / Player_1.my_probs[:,:,poker_hand])
+            del Test0_2
+            
+        # Case 0.3, Improper name
+        # Not sure we have an improper name
+        try:
+            Test0_3 = Manual_Decision_Bot("''", [1000, 1000, 1000])
+        except:
+            assert True
+        else:
+            assert False, "Case 0.3 failed: bot successfully created with an improper name."
+            del Test0_3
+    
+        # Case 0.4, No cash
+        try:
+            Test0_4 = Manual_Decision_Bot("Test", [0, 0, 1000])
+        except:
+            assert True
+        else:
+            assert False, "Case 0.4 failed: bot successfully created with players lacking cash."
+            del Test0_4
+        
+        # Case 0.5, Lots of Cash
+        try:
+            Test0_5 = Manual_Decision_Bot("Test", [10000000000000000000000000000000, 10000000000000000000000000000000, 1000])
+        except:
+            assert False, "Case 0.5 failed: bot could not be created with lots of cash."
+        else:
+            del Test0_5
+            
+        # Case 0.6, Negative Cash
+        try:
+            Test0_6 = Manual_Decision_Bot("Test", [-1, -900, 1000])
+        except:
+            assert True
+        else:
+            assert False, "Case 0.6 failed: bot successfully created with negative cash."
+            del Test0_6
+            
+        # Case 0.7, Improper Cash Type
+        try:
+            Test0_7 = Manual_Decision_Bot("Test", ["gh", 1.033, 1000])
+        except:
+            assert True
+        else:
+            assert False, "Case 0.7 failed: bot successfully created with improper cash type(s)."
+            del Test0_7
+        
+        # Case 0.8, No players
+        try:
+            Test0_8 = Manual_Decision_Bot("Test", [])
+        except:
+            assert True
+        else:
+            assert False, "Case 0.8 failed: bot successfully created with no players."
+            del Test0_8
+    
+        # Case 0.9, No opponents
+        try:
+            Test0_9 = Manual_Decision_Bot("Test", [1000])
+        except:
+            assert True
+        else:
+            assert False, "Case 0.9 failed: bot successfully created with no opponents."
+            del Test0_9
+    
+        # Case 0.10, Lots of players
+        try:
+            Test0_10 = Manual_Decision_Bot("Test", [1, 20, 300, 4000, 50000, 600000, 7000000, 80000000, 900000000, 1000000000, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+        except:
+            assert False, "Case 0.10 failed: bot could not be created with lots of players."
+            del Test0_10
+
+
+    ## 1) Individual Function Unit Tests
+    if(Test_Set_1_Individual_Function_Tests):
+        print("Running Test Set 1: Individual Function Unit Tests")
+        
+        # Case 1.0.0, New Round Reset Checks
+        
+        # Case 1.1.0, comb - Nominal
+        
+        # Case 1.1.1, comb - Negative
+        
+        # Case 1.1.2, comb - Too Large
+        
+        # Case 1.1.3, comb - Improper Type
+    
+    ## 2) Dealing Cards Unit Tests
+    if(Test_Set_2_Dealing_Cards_Tests):
+        print("Running Test Set 2: Dealing Cards Unit Tests")
+        Test_2 = Manual_Decision_Bot('Test', [1500, 2000, 3500])
+
+        # Case 2.0.0, Impossible card dealt - Number Negative
+        Test_2.new_round()
+        Test_2.dealt_card
+        
+        # Case 2.0.1, Impossible card dealt - Number Too Large
+        
+        # Case 2.0.2, Impossible card dealt - Number Improper Type
+        
+        # Case 2.0.3, Impossible card dealt - Suit Negative
+        
+        # Case 2.0.4, Impossible card dealt - Suit Too Large
+        
+        # Case 2.0.5, Impossible card dealt - Suit Improper Type
+        
+        # Case 2.1, Multiple of the same card dealt
+        
+        # Case 2.2, Too many cards dealt
+
+    
+    ## 3) Probability Calc Unit Tests
+    if(Test_Set_3_Probability_Calc_Tests):
+       print("Running Test Set 3: Probability Calc Unit Tests")
+       
+       # Case 3.0, No Cards Dealt
+       Player_1.new_round()
+       dealt_cards = np.zeros((4,13), dtype = np.int) # Suit x Rank
+       probs = np.zeros((4,13,9), dtype = np.float64)
+       Player_1.calc_probs()
+       assert np.equal(Player_1.my_probs, probs), "Case 3.0 Failed, No Cards Dealt"
+       
+       # Case 3.1, Hand Dealt
+       
+       # Case 3.2, Flop
+       
+       # Case 3.3, All Revealed - High (Jack Spade)
+       
+       # Case 3.4, All Revealed - Pair (Queen Diamonds)
+       
+       # Case 3.5, All Revealed - Two Pair (6 Spades, 3 Diamonds)
+       
+       # Case 3.6, All Revealed - Three of a Kind (2 Hearts)
+       
+       # Case 3.7, All Revealed - Straight (7 Spades)
+       
+       # Case 3.8, All Revealed - Flush (10 Clubs)
+       
+       # Case 3.9, All Revealed - Full House (Pair: King of Hearts, Triple: 3 Spades)
+       
+       # Case 3.10, All Revealed - Four of a Kind (Ace Spades)
+       
+       # Case 3.11, All Revealed - Straight Flush (9 Diamonds)
+
+
+    ## 4) Decision Unit Tests
+    if(Test_Set_4_Decision_Tests):
+        print("Running Test Set 4: Decision Unit Tests")
